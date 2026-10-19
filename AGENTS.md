@@ -64,6 +64,7 @@ Edit this file, not the README. `CHANGELOG.md` records what has actually shipped
 - **Pushing to `master` publishes.** `.github/workflows/release.yml` gates on `scripts/build.sh` + `scripts/smoke.sh`, then tags `v<x.y.z>`, builds `scripts/package.sh` output and attaches it to the GitHub release. It is idempotent per release and never moves a tag. Nothing local publishes anything.
 - Tags belong to CI alone. Do not create them in a hook: a local tag and a CI tag land on different commits and `git fetch --tags` refuses to reconcile them.
 - `hooks/pre-commit` syncs the README `version-` badge to the changelog and refuses a link to a version that is neither tagged nor the newest heading. `hooks/post-commit` writes that link block — published versions from tags, the newest version as pending — and commits it separately. It touches no network.
+- **`git fetch --tags` after CI publishes.** The block is built from local tags, so a release the clone has not fetched loses its link on the next commit, and the hook has no way to know it exists.
 - To ship: rename `Unreleased` to the new version with today's date, write the section, commit, push. CI does the rest.
 - `install-hooks.ps1` installs both hooks; `.git/hooks` is not tracked, so a fresh clone needs it once.
 
