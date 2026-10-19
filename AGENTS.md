@@ -12,10 +12,11 @@ Edit this file, not the README. `CHANGELOG.md` records what has actually shipped
 
 ## Validation
 
-- `sh scripts/build.sh` compiles all 22 files with `javac`. `sh scripts/smoke.sh` plays a scripted opening headless.
-- **Do not run them before committing.** `hooks/pre-commit` runs both and refuses the commit if either fails, so running them first spends the same two seconds twice and changes nothing.
+- `sh scripts/build.sh` compiles all 22 files with `javac`. `sh scripts/smoke.sh` plays a scripted opening headless. `sh scripts/package.sh` builds the release artifact and refuses to run without a version in the changelog.
+- **Do not run the first two before committing.** `hooks/pre-commit` runs both and refuses the commit if either fails, so running them first spends the same two seconds twice and changes nothing. `package.sh` is not in the hook, so run it when the release artifact or the `Main-Class` matters.
 - Run the smoke check when the change touches `MapLoader`, `rooms.csv`, items, stats, or `RoomCondition`, and watch it fail when you break what it guards. A gate you have not seen go red is a gate you have not tested.
 - The smoke run covers the opening only — parse the map, pick up the Magical Flower, open the wisdom-gated Castle Lobby. There is no test framework and adding one for this project is not a trade worth making; extend `smoke.sh` instead when a change needs a check that does not exist.
+- CI runs the same two scripts before it publishes anything, so a green local gate is not what makes the release safe — the workflow's is.
 
 ## Structure
 
@@ -60,9 +61,10 @@ Edit this file, not the README. `CHANGELOG.md` records what has actually shipped
 ## Versioning
 
 - `CHANGELOG.md` is the single source of truth. The newest `## [x.y.z]` heading is the version; `Unreleased` does not count.
-- `hooks/pre-commit` syncs the README `version-` badge to it and refuses a changelog reference link naming an untagged version.
-- `hooks/post-commit` tags `v<x.y.z>` when the version has no tag, pushes it once the commit is on the remote, creates the GitHub release with `gh`, and rewrites the changelog links. It never moves a tag.
-- To ship: rename `Unreleased` to the new version with today's date, write the section, commit. The hook does the rest. `ROOMS_SKIP_RELEASE=1 git commit` suppresses the tag for a commit that reworded the changelog without meaning to cut a release.
+- **Pushing to `master` publishes.** `.github/workflows/release.yml` gates on `scripts/build.sh` + `scripts/smoke.sh`, then tags `v<x.y.z>`, builds `scripts/package.sh` output and attaches it to the GitHub release. It is idempotent per release and never moves a tag. Nothing local publishes anything.
+- Tags belong to CI alone. Do not create them in a hook: a local tag and a CI tag land on different commits and `git fetch --tags` refuses to reconcile them.
+- `hooks/pre-commit` syncs the README `version-` badge to the changelog and refuses a link to a version that is neither tagged nor the newest heading. `hooks/post-commit` writes that link block — published versions from tags, the newest version as pending — and commits it separately. It touches no network.
+- To ship: rename `Unreleased` to the new version with today's date, write the section, commit, push. CI does the rest.
 - `install-hooks.ps1` installs both hooks; `.git/hooks` is not tracked, so a fresh clone needs it once.
 
 ## Artefacts
