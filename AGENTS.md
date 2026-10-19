@@ -1,0 +1,78 @@
+# Agent Directives
+
+Project rules for Rooms. Loaded automatically on every request.
+Edit this file, not the README. `CHANGELOG.md` records what has actually shipped.
+
+## Environment
+
+- Windows 11. PowerShell 7 for shell work (`&&` is fine), Git Bash (`sh`) for everything under `hooks/` and `scripts/`.
+- No emojis in code, logs, or output. Use `[OK]` / `[WARN]` / `[ERROR]`.
+- Use the `edit` tool, not shell line-slicing, for editing files.
+- `out/` is scratch and gitignored. Nothing a later session needs goes in the system temp directory.
+
+## Validation
+
+- `sh scripts/build.sh` compiles all 22 files with `javac`. `sh scripts/smoke.sh` plays a scripted opening headless.
+- **Do not run them before committing.** `hooks/pre-commit` runs both and refuses the commit if either fails, so running them first spends the same two seconds twice and changes nothing.
+- Run the smoke check when the change touches `MapLoader`, `rooms.csv`, items, stats, or `RoomCondition`, and watch it fail when you break what it guards. A gate you have not seen go red is a gate you have not tested.
+- The smoke run covers the opening only — parse the map, pick up the Magical Flower, open the wisdom-gated Castle Lobby. There is no test framework and adding one for this project is not a trade worth making; extend `smoke.sh` instead when a change needs a check that does not exist.
+
+## Structure
+
+- `src/` is split by package: `commands`, `enemy`, `items`, `player`, `room`, `utilities`, `myExceptions`. A class that does not fit one of those does not belong yet.
+- 300-line limit. `Room.java` is the largest file at 199 and is at the edge of what a class should hold — most of it is getters.
+- One purpose per class. No god objects.
+- DRY, unless it produces an opaque helper.
+- No dependencies. Not one. A library for CSV parsing or a test runner is a bigger cost here than the code it replaces.
+
+## Code documentation
+
+- Write no comments in code. Not `//`, not `/* */`, not Javadoc, not license headers, not prose annotations. Naming carries meaning; a comment restating the line below it is noise.
+- No comment blocks in source. The prose belongs in this file and in `CHANGELOG.md`, which is where a reader looks for it.
+- If a comment is unavoidable, one short line, and only for something the code cannot say: a non-obvious invariant, a workaround, a format note.
+- When existing code carries lengthy comments, delete them as part of the change that touches that code. `ShowItemsCommand.undo()`, `Combat.warn`, and `Player` are the places to start.
+- Do not create extra `.md` files to explain code.
+
+## The map
+
+`rooms.csv` is the level, and it is data — the same data as `map.png`, in a format `MapLoader` parses by column position.
+
+- The format is `map guide.txt`. When the loader and the guide disagree, the guide is the specification and the loader is the bug.
+- Line 1 is a room. Columns are positional: `id, name, north, east, south, west` are mandatory, then description, items, enemies, warning message, weapons, conditions, isWinRoom, winMessage. Empty trailing columns are fine; a missing *leading* one silently shifts everything.
+- `-1` is a wall. Room `0` is the start. Room `11` is the win room and its `strength:30` condition is the only one that can end a run.
+- **A comma followed by a space is fine; a comma followed by anything else is not.** `MapLoader` splits on `,(?!\s)` — a comma *not* followed by whitespace — specifically so that "a nice room, full of nice things." survives as one column, which is how the guide's own example is written. What silently corrupts the map is a comma with no space after it: the column splits there, everything after shifts left, and the room loads as something that makes no sense rather than as an error.
+- Add a room to `rooms.csv` *and* to `map.png`. They are two views of one level and a map that disagrees with the game is worse than no map.
+- Enemies are listed as `Name:health:strength:agility`, semicolon-separated. Agility is the enemy's chance to dodge in percent — `Imp Assistant:15:5:30` dodges nearly a third of the time and dies in three hits, and that is the intended shape of the numbers.
+
+## Commands
+
+- A command is a `Command` implementing `execute()` and `undo()`. Movement, pick-up and discard are undoable through `PlayerController`'s stack; `L` is not, and its `undo()` says so rather than pretending.
+- Adding a command means three edits: the class, the `switch` in `PlayerController`, and the help text — which is written out twice, in `Main` and again in the `H` case. Update both or neither; they are already two copies of the same sentence.
+- The `switch` reads one uppercase line from a single `Scanner` in `PlayerController`. `Combat` makes a *second* `Scanner` over the same stream, which works only because combat prompts before it reads. Do not add a third reader.
+
+## Commits
+
+- Conventional Commits 1.0.0.
+- Never `--no-verify` past `hooks/pre-commit`.
+- After three failed attempts on a build or a fix, stop and report each attempt with the exact error and the diagnosis. Never disable the smoke check to force a pass.
+- **Describe the change, not the author.** No `Co-Authored-By:`, no `Generated with`, no tool name, no model name, no `noreply@` address. Conventional Commits is a spec for the change; a trailer naming a tool is not part of it.
+
+## Versioning
+
+- `CHANGELOG.md` is the single source of truth. The newest `## [x.y.z]` heading is the version; `Unreleased` does not count.
+- `hooks/pre-commit` syncs the README `version-` badge to it and refuses a changelog reference link naming an untagged version.
+- `hooks/post-commit` tags `v<x.y.z>` when the version has no tag, pushes it once the commit is on the remote, creates the GitHub release with `gh`, and rewrites the changelog links. It never moves a tag.
+- To ship: rename `Unreleased` to the new version with today's date, write the section, commit. The hook does the rest. `ROOMS_SKIP_RELEASE=1 git commit` suppresses the tag for a commit that reworded the changelog without meaning to cut a release.
+- `install-hooks.ps1` installs both hooks; `.git/hooks` is not tracked, so a fresh clone needs it once.
+
+## Artefacts
+
+- Everything a session produces goes under `out/`. Nothing meant to be read later goes in the system temp directory.
+- `log.txt` is the game's own log: `Logic.printToUser` appends every line it prints, in the working directory, so the game writes there whenever it runs. `scripts/smoke.sh` therefore plays from `out/smoke` with its own copy of `rooms.csv` — a gate that dirties a tracked file is a gate that gets uninstalled.
+
+## Response format
+
+- No articles (`a`, `an`, `the`), no filler (`just`, `really`, `basically`), no pleasantries (`sure`, `certainly`).
+- No preamble or postamble. Start with the answer, stop when the facts are delivered.
+- Action first. Explain only when asked.
+- Keep technical data exact and code blocks unchanged.
